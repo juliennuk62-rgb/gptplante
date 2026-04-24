@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Jardin de Siège — Tower Defense</title>
+  <style>
+    :root {
+      --bg: #14211a;
+      --panel: rgba(14, 24, 20, 0.92);
+      --accent: #9ee37d;
+      --danger: #ff5f68;
+      --gold: #ffd76a;
+      --text: #eaf7ee;
+      --muted: #9db6a4;
+      --gridA: #38614a;
+      --gridB: #325740;
+      --house: #d8f3e4;
+      --shopH: 132px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 10%, #243b2f 0%, var(--bg) 60%);
+      color: var(--text);
+      font-family: Inter, Segoe UI, Roboto, system-ui, sans-serif;
+      user-select: none;
+    }
+
+    #app {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+
+    .hud {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      top: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(190, 255, 214, 0.25);
+      border-radius: 12px;
+      padding: 10px 14px;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+      backdrop-filter: blur(6px);
+      pointer-events: auto;
+    }
+
+    .money {
+      font-size: 30px;
+      line-height: 1;
+      font-weight: 900;
+      color: var(--gold);
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      letter-spacing: 0.5px;
+    }
+
+    .tiny {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+
+    .stats {
+      text-align: right;
+      min-width: 200px;
+    }
+
+    .statline {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 2px 0;
+    }
+
+    .controls {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 6;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    button {
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: linear-gradient(180deg, #335742, #1f3529);
+      color: var(--text);
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      border-radius: 12px;
+      padding: 12px 16px;
+      min-width: 144px;
+      cursor: pointer;
+      transition: transform .12s ease, filter .15s ease, opacity .15s;
+      pointer-events: auto;
+      box-shadow: 0 8px 16px rgba(0,0,0,.25);
+    }
+
+    button:hover { transform: translateY(-1px); filter: brightness(1.06); }
+    button:active { transform: translateY(1px) scale(.99); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    #pauseBtn {
+      min-width: 98px;
+      padding: 9px 12px;
+      font-size: 13px;
+    }
+
+    .shop {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: var(--shopH);
+      z-index: 7;
+      background: linear-gradient(180deg, rgba(8,13,11,.2), rgba(8,13,11,.88) 24%, rgba(8,13,11,.95));
+      border-top: 1px solid rgba(208, 255, 231, 0.2);
+      padding: 8px 12px;
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      overflow-x: auto;
+    }
+
+    .card {
+      flex: 0 0 154px;
+      background: rgba(30, 47, 39, 0.94);
+      border: 1px solid rgba(183, 255, 218, 0.2);
+      border-radius: 12px;
+      padding: 7px 10px;
+      cursor: pointer;
+      transition: transform .12s ease, border-color .15s ease, filter .15s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.4); }
+    .card.selected { border-color: #ffe58a; box-shadow: 0 0 0 1px rgba(255,229,138,.35) inset; }
+    .card.locked { filter: grayscale(.65) brightness(.85); }
+
+    .cardTitle {
+      font-weight: 800;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .meta {
+      margin-top: 3px;
+      font-size: 12px;
+      color: #c7ddce;
+    }
+
+    .cost {
+      margin-top: 6px;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--gold);
+    }
+
+    .cd {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 5px;
+      background: rgba(255,255,255,.1);
+    }
+
+    .cdFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #7dd2ff, #2f8bb8);
+    }
+
+    #banner {
+      position: absolute;
+      top: 78px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 8;
+      background: rgba(17, 27, 22, .92);
+      border: 1px solid rgba(245, 237, 175, 0.5);
+      border-radius: 12px;
+      color: #fff9cf;
+      font-weight: 900;
+      padding: 10px 14px;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .22s ease;
+    }
+    #banner.show { opacity: 1; }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 12;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(5, 8, 7, 0.78);
+      backdrop-filter: blur(5px);
+    }
+
+    .modal {
+      width: min(92vw, 440px);
+      background: rgba(17, 29, 23, .96);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .modal h1 {
+      margin: 0 0 10px;
+      font-size: 35px;
+      letter-spacing: 1px;
+      color: #ffd4d7;
+    }
+
+    .modal p {
+      margin: 6px 0;
+      color: #d2e8da;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <div class="hud">
+      <div class="panel">
+        <div id="money" class="money">🌱 50</div>
+        <div class="tiny">Sève</div>
+      </div>
+      <div class="panel stats">
+        <div class="statline" id="waveText">Wave 1</div>
+        <div class="statline" id="killText">Kills 0</div>
+        <div class="tiny" id="weatherText">Météo: Brise claire</div>
+        <button id="pauseBtn">Pause</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="startWaveBtn">Start wave</button>
+    </div>
+
+    <div id="banner"></div>
+
+    <div id="shop" class="shop"></div>
+
+    <div id="overlay">
+      <div class="modal">
+        <h1>Jardin perdu</h1>
+        <p id="finalScore">Score: 0</p>
+        <p id="finalWave">Wave atteinte: 1</p>
+        <button id="retryBtn">Rejouer</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    // =========================================================
+    // CONSTANTES & CONFIG
+    // =========================================================
+    const GRID_COLS = 6;
+    const GRID_ROWS = 4;
+    const START_CURRENCY = 50;
+    const BASE_AUTO_WAVE_DELAY = 5;
+    const TARGET_FPS = 60;
+    const MAX_PARTICLES = 700;
+    const MAX_POPUPS = 150;
+    const HOUSE_SAFE_X_RATIO = 0.06;
+    const ENEMY_SPAWN_OFFSET = 36;
+    const BOSS_EVERY = 5;
+
+    const LANE_COLORS = ['#7cb58e', '#74ad86', '#6da57f', '#659a77'];
+
+    const WEATHER_STATES = [
+      {
+        name: 'Brise claire',
+        duration: 26,
+        tint: 'rgba(255,255,255,0)',
+        fireRateMult: 1,
+        incomeBonus: 0
+      },
+      {
+        name: 'Pluie de pollen',
+        duration: 18,
+        tint: 'rgba(255, 229, 128, 0.10)',
+        fireRateMult: 1.16,
+        incomeBonus: 2
+      },
+      {
+        name: 'Rosée nocturne',
+        duration: 16,
+        tint: 'rgba(115, 129, 255, 0.15)',
+        fireRateMult: 0.9,
+        incomeBonus: 0
+      }
+    ];
+
+    const PLANT_DEFS = {
+      coinBloom: {
+        id: 'coinBloom',
+        name: 'Trèfle-Coffre',
+        emoji: '🍀',
+        role: 'Éco',
+        desc: 'Génère de la sève régulièrement.',
+        cost: 25,
+        cooldown: 2.0,
+        maxHp: 70,
+        incomeAmount: 12,
+        incomeInterval: 5.8,
+        blocking: true,
+        drawColor: '#ffef92'
+      },
+      pea: {
+        id: 'pea',
+        name: 'Pousse-Lance',
+        emoji: '🌿',
+        role: 'DPS',
+        desc: 'Tir moyen dans sa lane.',
+        cost: 90,
+        cooldown: 1.8,
+        maxHp: 85,
+        damage: 22,
+        rate: 1.08,
+        projectileSpeed: 350,
+        range: 9999,
+        drawColor: '#89ff88'
+      },
+      rapid: {
+        id: 'rapid',
+        name: 'Rafale-Menthe',
+        emoji: '🌱',
+        role: 'Rapide',
+        desc: 'Faibles dégâts, cadence folle.',
+        cost: 120,
+        cooldown: 2.2,
+        maxHp: 75,
+        damage: 8,
+        rate: 4.8,
+        projectileSpeed: 420,
+        range: 9999,
+        drawColor: '#72ffd8'
+      },
+      pierce: {
+        id: 'pierce',
+        name: 'Rose Épineuse',
+        emoji: '🌹',
+        role: 'Perçant',
+        desc: 'Projectile traverse les lignes.',
+        cost: 170,
+        cooldown: 3.0,
+        maxHp: 95,
+        damage: 28,
+        rate: 1.3,
+        projectileSpeed: 420,
+        pierce: 4,
+        drawColor: '#ff8faf'
+      },
+      boom: {
+        id: 'boom',
+        name: 'Courge Comète',
+        emoji: '🎃',
+        role: 'AoE',
+        desc: 'Explose en zone.',
+        cost: 280,
+        cooldown: 4.8,
+        maxHp: 110,
+        damage: 74,
+        rate: 0.62,
+        projectileSpeed: 280,
+        splashRadius: 64,
+        drawColor: '#ffb36b'
+      },
+      wall: {
+        id: 'wall',
+        name: 'Mûr de Lierre',
+        emoji: '🧱',
+        role: 'Tank',
+        desc: 'Énorme HP, bloque durablement.',
+        cost: 135,
+        cooldown: 2.6,
+        maxHp: 420,
+        blocking: true,
+        tinyDamage: 2,
+        tinyRate: 0.65,
+        drawColor: '#97ce74'
+      },
+      frost: {
+        id: 'frost',
+        name: 'Iris Givrant',
+        emoji: '❄️',
+        role: 'Slow',
+        desc: 'Ralentit les ennemis touchés.',
+        cost: 200,
+        cooldown: 3.1,
+        maxHp: 90,
+        damage: 12,
+        rate: 1.6,
+        projectileSpeed: 360,
+        slowPct: 0.45,
+        slowDuration: 2.2,
+        drawColor: '#9fd7ff'
+      },
+      chain: {
+        id: 'chain',
+        name: 'Liane Tesla',
+        emoji: '⚡',
+        role: 'Chaîne',
+        desc: 'Arc électrique sur 3 cibles.',
+        cost: 260,
+        cooldown: 3.8,
+        maxHp: 100,
+        damage: 24,
+        rate: 0.92,
+        chainCount: 3,
+        chainRange: 115,
+        drawColor: '#d0b6ff'
+      }
+    };
+
+    const ENEMY_DEFS = {
+      grub: {
+        id: 'grub',
+        name: 'Mulot Rongeur',
+        hp: 90,
+        speed: 42,
+        damage: 22,
+        atkRate: 0.9,
+        reward: 12,
+        radius: 18,
+        color: '#bc8f5a'
+      },
+      weasel: {
+        id: 'weasel',
+        name: 'Belette Foudre',
+        hp: 48,
+        speed: 72,
+        damage: 15,
+        atkRate: 1.3,
+        reward: 10,
+        radius: 15,
+        color: '#d7c6a9'
+      },
+      boar: {
+        id: 'boar',
+        name: 'Sanglier Blindé',
+        hp: 260,
+        speed: 27,
+        damage: 36,
+        atkRate: 0.65,
+        reward: 28,
+        radius: 24,
+        color: '#7f5c4d'
+      },
+      hopper: {
+        id: 'hopper',
+        name: 'Lapin-Sauteur',
+        hp: 88,
+        speed: 47,
+        damage: 24,
+        atkRate: 0.85,
+        reward: 18,
+        radius: 16,
+        jumper: true,
+        color: '#c9a2d4'
+      },
+      splitter: {
+        id: 'splitter',
+        name: 'Gelée Fendue',
+        hp: 124,
+        speed: 35,
+        damage: 18,
+        atkRate: 0.9,
+        reward: 24,
+        radius: 20,
+        onDeathSpawn: 'weasel',
+        color: '#89d0ff'
+      },
+      shaman: {
+        id: 'shaman',
+        name: 'Corbeau Chaman',
+        hp: 170,
+        speed: 31,
+        damage: 17,
+        atkRate: 0.7,
+        reward: 34,
+        radius: 20,
+        healer: true,
+        color: '#5f6aa5'
+      },
+      boss: {
+        id: 'boss',
+        name: 'Cerf du Néant',
+        hp: 980,
+        speed: 24,
+        damage: 52,
+        atkRate: 0.75,
+        reward: 120,
+        radius: 31,
+        boss: true,
+        summonInterval: 8,
+        armorVsBasic: 0.38,
+        color: '#f5657f'
+      }
+    };
+
+    const app = document.getElementById('app');
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const moneyEl = document.getElementById('money');
+    const waveTextEl = document.getElementById('waveText');
+    const killTextEl = document.getElementById('killText');
+    const weatherTextEl = document.getElementById('weatherText');
+    const startWaveBtn = document.getElementById('startWaveBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const shopEl = document.getElementById('shop');
+    const overlay = document.getElementById('overlay');
+    const retryBtn = document.getElementById('retryBtn');
+    const finalScoreEl = document.getElementById('finalScore');
+    const finalWaveEl = document.getElementById('finalWave');
+    const bannerEl = document.getElementById('banner');
+
+    // =========================================================
+    // AUDIO (Web Audio API)
+    // =========================================================
+    const audio = {
+      ctx: null,
+      master: null,
+      unlocked: false,
+      ensure() {
+        if (this.ctx) return;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.12;
+        this.master.connect(this.ctx.destination);
+      },
+      unlock() {
+        this.ensure();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        this.unlocked = true;
+      },
+      tone({ f = 440, t = 0.08, type = 'sine', gain = 0.15, slide = 0, when = 0 }) {
+        if (!this.unlocked) return;
+        const now = this.ctx.currentTime + when;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(f, now);
+        if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(40, f + slide), now + t);
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(gain, now + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + t);
+        osc.connect(g);
+        g.connect(this.master);
+        osc.start(now);
+        osc.stop(now + t + 0.03);
+      },
+      click() { this.tone({ f: 620, t: 0.05, type: 'triangle', gain: 0.08, slide: 180 }); },
+      place() {
+        this.tone({ f: 240, t: 0.11, type: 'square', gain: 0.09, slide: 110 });
+        this.tone({ f: 390, t: 0.09, type: 'triangle', gain: 0.06, when: 0.02 });
+      },
+      shoot() { this.tone({ f: 540 + Math.random() * 80, t: 0.04, type: 'square', gain: 0.05, slide: -120 }); },
+      boom() {
+        this.tone({ f: 90, t: 0.25, type: 'sawtooth', gain: 0.13, slide: -50 });
+        this.tone({ f: 145, t: 0.19, type: 'triangle', gain: 0.08, slide: -80, when: 0.02 });
+      },
+      kill() { this.tone({ f: 300, t: 0.08, type: 'triangle', gain: 0.08, slide: 230 }); },
+      wave() {
+        this.tone({ f: 210, t: 0.2, type: 'sine', gain: 0.09, slide: 170 });
+        this.tone({ f: 410, t: 0.18, type: 'triangle', gain: 0.08, when: 0.04 });
+      },
+      buyFail() { this.tone({ f: 190, t: 0.1, type: 'square', gain: 0.08, slide: -60 }); },
+      gameOver() {
+        this.tone({ f: 180, t: 0.35, type: 'sawtooth', gain: 0.12, slide: -70 });
+        this.tone({ f: 120, t: 0.48, type: 'triangle', gain: 0.1, slide: -35, when: 0.08 });
+      }
+    };
+
+    // =========================================================
+    // ÉTAT GLOBAL
+    // =========================================================
+    const state = {
+      running: true,
+      paused: false,
+      gameOver: false,
+      width: 1280,
+      height: 720,
+      gridRect: { x: 0, y: 0, w: 0, h: 0, cellW: 0, cellH: 0 },
+      mouse: { x: 0, y: 0, inside: false },
+      hoverCell: null,
+      selectedPlantId: 'coinBloom',
+      currency: START_CURRENCY,
+      score: 0,
+      kills: 0,
+      wave: 0,
+      waveActive: false,
+      waveCountdown: BASE_AUTO_WAVE_DELAY,
+      lastWaveEndedAt: 0,
+      spawnQueue: [],
+      spawnTimer: 0,
+      plants: [],
+      enemies: [],
+      projectiles: [],
+      particles: [],
+      popups: [],
+      laneDanger: [0,0,0,0],
+      plantCooldowns: {},
+      weatherIndex: 0,
+      weatherTimer: WEATHER_STATES[0].duration,
+      cameraShake: 0,
+      cameraShakePower: 0,
+      now: 0
+    };
+
+    const gridOccupancy = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const choose = arr => arr[(Math.random() * arr.length) | 0];
+
+    // =========================================================
+    // LAYOUT
+    // =========================================================
+    function resize() {
+      state.width = window.innerWidth;
+      state.height = window.innerHeight;
+      canvas.width = Math.floor(state.width * devicePixelRatio);
+      canvas.height = Math.floor(state.height * devicePixelRatio);
+      canvas.style.width = state.width + 'px';
+      canvas.style.height = state.height + 'px';
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+      const topPad = 84;
+      const bottomPad = 142;
+      const sidePad = 34;
+      const w = state.width - sidePad * 2;
+      const h = state.height - topPad - bottomPad;
+      const gridW = Math.min(w * 0.72, h * 1.6);
+      const gridH = h;
+      const x = sidePad + 92;
+      const y = topPad;
+      state.gridRect = {
+        x,
+        y,
+        w: gridW,
+        h: gridH,
+        cellW: gridW / GRID_COLS,
+        cellH: gridH / GRID_ROWS
+      };
+    }
+
+    // =========================================================
+    // SHOP
+    // =========================================================
+    function buildShop() {
+      shopEl.innerHTML = '';
+      Object.values(PLANT_DEFS).forEach(def => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.id = def.id;
+        card.innerHTML = `
+          <div class="cardTitle">${def.emoji} ${def.name}</div>
+          <div class="meta">${def.role} · ${def.desc}</div>
+          <div class="cost">${def.cost} sève</div>
+          <div class="cd"><div class="cdFill"></div></div>
+        `;
+        card.addEventListener('click', () => {
+          audio.unlock();
+          state.selectedPlantId = def.id;
+          audio.click();
+          updateShopVisuals();
+        });
+        shopEl.appendChild(card);
+      });
+      updateShopVisuals();
+    }
+
+    function updateShopVisuals() {
+      const cards = [...shopEl.children];
+      cards.forEach(card => {
+        const id = card.dataset.id;
+        const def = PLANT_DEFS[id];
+        const cooldownLeft = state.plantCooldowns[id] || 0;
+        const lockedByMoney = state.currency < def.cost;
+        const selected = state.selectedPlantId === id;
+        card.classList.toggle('selected', selected);
+        card.classList.toggle('locked', lockedByMoney || cooldownLeft > 0);
+        const fill = card.querySelector('.cdFill');
+        const ratio = clamp(cooldownLeft / def.cooldown, 0, 1);
+        fill.style.width = (ratio * 100).toFixed(1) + '%';
+      });
+    }
+
+    // =========================================================
+    // HELPERS MONDE
+    // =========================================================
+    function cellToWorld(col, row) {
+      const g = state.gridRect;
+      return {
+        x: g.x + col * g.cellW + g.cellW * 0.5,
+        y: g.y + row * g.cellH + g.cellH * 0.5
+      };
+    }
+
+    function worldToCell(x, y) {
+      const g = state.gridRect;
+      if (x < g.x || y < g.y || x >= g.x + g.w || y >= g.y + g.h) return null;
+      const col = Math.floor((x - g.x) / g.cellW);
+      const row = Math.floor((y - g.y) / g.cellH);
+      if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return null;
+      return { col, row };
+    }
+
+    function nearestEnemyInLane(lane, minX) {
+      let best = null;
+      let bestX = Infinity;
+      for (const e of state.enemies) {
+        if (e.lane !== lane || e.dead) continue;
+        if (e.x < minX) continue;
+        if (e.x < bestX) { best = e; bestX = e.x; }
+      }
+      return best;
+    }
+
+    function enemyAtCollision(e) {
+      for (const p of state.plants) {
+        if (p.row !== e.lane || p.dead) continue;
+        const px = p.x + (state.gridRect.cellW * 0.36);
+        if (e.x - e.radius <= px) return p;
+      }
+      return null;
+    }
+
+    function createPopup(text, x, y, color = '#fff') {
+      if (state.popups.length > MAX_POPUPS) state.popups.shift();
+      state.popups.push({ text, x, y, vy: -38, life: 0.9, color, scale: 1 });
+    }
+
+    function burstParticles(x, y, count, color, speed = 160) {
+      for (let i = 0; i < count; i++) {
+        if (state.particles.length >= MAX_PARTICLES) break;
+        const a = Math.random() * Math.PI * 2;
+        const s = rand(speed * 0.2, speed);
+        state.particles.push({
+          x,
+          y,
+          vx: Math.cos(a) * s,
+          vy: Math.sin(a) * s,
+          life: rand(0.22, 0.5),
+          ttl: rand(0.22, 0.5),
+          color,
+          size: rand(1.2, 3.6)
+        });
+      }
+    }
+
+    function shake(power = 8) {
+      state.cameraShake = 0.24;
+      state.cameraShakePower = Math.max(state.cameraShakePower, power);
+    }
+
+    // =========================================================
+    // SPAWN / WAVES
+    // =========================================================
+    function announce(text, duration = 1.8) {
+      bannerEl.textContent = text;
+      bannerEl.classList.add('show');
+      setTimeout(() => bannerEl.classList.remove('show'), duration * 1000);
+    }
+
+    function createEnemy(typeId, lane, xOffset = 0) {
+      const def = ENEMY_DEFS[typeId];
+      const g = state.gridRect;
+      const y = g.y + lane * g.cellH + g.cellH * 0.5;
+      const jitter = rand(-12, 12);
+      const colorShift = (Math.random() * 12 - 6) | 0;
+      const instance = {
+        id: Math.random().toString(36).slice(2),
+        type: typeId,
+        lane,
+        x: g.x + g.w + ENEMY_SPAWN_OFFSET + xOffset,
+        y,
+        hp: def.hp,
+        maxHp: def.hp,
+        speed: def.speed,
+        damage: def.damage,
+        atkRate: def.atkRate,
+        atkTimer: 0,
+        radius: def.radius,
+        dead: false,
+        reward: def.reward,
+        color: def.color,
+        colorShift,
+        yJitter: jitter,
+        jumped: false,
+        slowTimer: 0,
+        slowFactor: 1,
+        summonTimer: def.summonInterval || 999,
+        healerPulse: 0
+      };
+      state.enemies.push(instance);
+    }
+
+    function addSpawn(typeId, lane, delay) {
+      state.spawnQueue.push({ typeId, lane, delay });
+    }
+
+    function buildWave(wave) {
+      state.spawnQueue.length = 0;
+      const enemyCount = 5 + Math.floor(wave * 1.4);
+
+      if (wave % BOSS_EVERY === 0) {
+        announce('⚠ Boss entrant : Cerf du Néant ⚠', 2.6);
+      }
+
+      for (let i = 0; i < enemyCount; i++) {
+        const lane = (Math.random() * GRID_ROWS) | 0;
+        let type = 'grub';
+
+        if (wave >= 2 && Math.random() < 0.23) type = 'weasel';
+        if (wave >= 3 && Math.random() < 0.18) type = 'boar';
+        if (wave >= 4 && Math.random() < 0.2) type = 'hopper';
+        if (wave >= 6 && Math.random() < 0.16) type = 'splitter';
+        if (wave >= 7 && Math.random() < 0.12) type = 'shaman';
+
+        addSpawn(type, lane, 0.45 + Math.random() * 0.55);
+      }
+
+      if (wave % BOSS_EVERY === 0) {
+        const lane = (Math.random() * GRID_ROWS) | 0;
+        addSpawn('boss', lane, 1.8);
+      }
+
+      state.spawnTimer = 0.25;
+      state.waveActive = true;
+      state.waveCountdown = BASE_AUTO_WAVE_DELAY;
+      audio.wave();
+    }
+
+    function startWave() {
+      if (state.waveActive || state.gameOver) return;
+      state.wave += 1;
+      buildWave(state.wave);
+      announce(`Wave ${state.wave}`, 1.2);
+      waveTextEl.textContent = `Wave ${state.wave}`;
+    }
+
+    function finishWave() {
+      state.waveActive = false;
+      state.waveCountdown = BASE_AUTO_WAVE_DELAY;
+      state.currency += 14 + Math.floor(state.wave * 0.8);
+      updateHUD();
+    }
+
+    // =========================================================
+    // COMBAT / ACTIONS
+    // =========================================================
+    function placePlant(col, row) {
+      if (state.gameOver || state.paused) return;
+      const def = PLANT_DEFS[state.selectedPlantId];
+      if (!def) return;
+      if (gridOccupancy[row][col]) return audio.buyFail();
+
+      const cd = state.plantCooldowns[def.id] || 0;
+      if (cd > 0 || state.currency < def.cost) {
+        audio.buyFail();
+        return;
+      }
+
+      state.currency -= def.cost;
+      state.plantCooldowns[def.id] = def.cooldown;
+      const pos = cellToWorld(col, row);
+      const p = {
+        id: Math.random().toString(36).slice(2),
+        type: def.id,
+        col, row,
+        x: pos.x,
+        y: pos.y,
+        hp: def.maxHp,
+        maxHp: def.maxHp,
+        fireTimer: rand(0.05, 0.45),
+        incomeTimer: def.incomeInterval || 999,
+        recoil: 0,
+        dead: false,
+        scale: 0.3,
+        scaleVel: 5.2
+      };
+      state.plants.push(p);
+      gridOccupancy[row][col] = p;
+
+      burstParticles(p.x, p.y, 14, def.drawColor, 120);
+      createPopup(`-${def.cost}`, p.x, p.y - 12, '#ffbe83');
+      audio.place();
+      updateHUD();
+      updateShopVisuals();
+    }
+
+    function damageEnemy(enemy, amount, sourceType = 'generic', isSplash = false) {
+      if (enemy.dead) return;
+      if (enemy.type === 'boss' && sourceType === 'pea') amount *= (1 - ENEMY_DEFS.boss.armorVsBasic);
+
+      enemy.hp -= amount;
+      burstParticles(enemy.x, enemy.y, isSplash ? 9 : 4, '#ffd1d1', isSplash ? 220 : 160);
+      createPopup(Math.round(amount), enemy.x + rand(-8, 8), enemy.y - 8, '#ffe2e2');
+      if (enemy.hp <= 0) killEnemy(enemy);
+    }
+
+    function damagePlant(plant, amount) {
+      plant.hp -= amount;
+      burstParticles(plant.x, plant.y, 6, '#d2ffd4', 110);
+      if (plant.hp <= 0) {
+        plant.dead = true;
+        if (gridOccupancy[plant.row][plant.col] === plant) gridOccupancy[plant.row][plant.col] = null;
+        burstParticles(plant.x, plant.y, 14, '#b3ffcf', 160);
+      }
+    }
+
+    function killEnemy(enemy) {
+      if (enemy.dead) return;
+      enemy.dead = true;
+      state.kills += 1;
+      state.score += enemy.reward * 3;
+      state.currency += enemy.reward;
+      createPopup(`+${enemy.reward}`, enemy.x, enemy.y - 18, '#ffd76a');
+      burstParticles(enemy.x, enemy.y, enemy.type === 'boss' ? 32 : 14, '#fff0b4', 210);
+      if (enemy.type === 'boss') {
+        state.currency += 120;
+        state.score += 300;
+        announce('Boss vaincu ! Prime +120', 1.8);
+        shake(12);
+      }
+      audio.kill();
+
+      const def = ENEMY_DEFS[enemy.type];
+      if (def.onDeathSpawn) {
+        createEnemy(def.onDeathSpawn, enemy.lane, rand(-8, 12));
+        createEnemy(def.onDeathSpawn, enemy.lane, rand(10, 30));
+      }
+      updateHUD();
+    }
+
+    function fireProjectile(plant, enemy, def) {
+      const angle = Math.atan2(enemy.y - plant.y, enemy.x - plant.x);
+      const proj = {
+        x: plant.x + Math.cos(angle) * 20,
+        y: plant.y + Math.sin(angle) * 4,
+        vx: Math.cos(angle) * def.projectileSpeed,
+        vy: Math.sin(angle) * def.projectileSpeed,
+        lane: plant.row,
+        damage: def.damage,
+        pierceLeft: def.pierce || 1,
+        splashRadius: def.splashRadius || 0,
+        slowPct: def.slowPct || 0,
+        slowDuration: def.slowDuration || 0,
+        sourceType: def.id,
+        color: def.drawColor,
+        life: 2.2,
+        hitSet: new Set()
+      };
+      state.projectiles.push(proj);
+      plant.recoil = 1;
+      audio.shoot();
+    }
+
+    function castChain(plant, def) {
+      const targets = state.enemies.filter(e => !e.dead && Math.abs(e.y - plant.y) < state.gridRect.cellH * 0.55);
+      targets.sort((a,b)=>Math.hypot(a.x-plant.x,a.y-plant.y)-Math.hypot(b.x-plant.x,b.y-plant.y));
+      if (!targets.length) return;
+
+      const used = [];
+      let fromX = plant.x, fromY = plant.y;
+      for (let i = 0; i < Math.min(def.chainCount, targets.length); i++) {
+        let best = null;
+        let bestDist = Infinity;
+        for (const t of targets) {
+          if (used.includes(t)) continue;
+          const d = Math.hypot(t.x - fromX, t.y - fromY);
+          if (d < bestDist && d <= def.chainRange + i * 20) {
+            best = t;
+            bestDist = d;
+          }
+        }
+        if (!best) break;
+        used.push(best);
+
+        for (let s = 0; s < 6; s++) {
+          const r = s / 5;
+          burstParticles(lerp(fromX, best.x, r), lerp(fromY, best.y, r), 1, '#d8caff', 30);
+        }
+
+        damageEnemy(best, def.damage * (1 - i * 0.22), def.id);
+        fromX = best.x;
+        fromY = best.y;
+      }
+      plant.recoil = 0.8;
+      audio.shoot();
+    }
+
+    // =========================================================
+    // UPDATE
+    // =========================================================
+    function update(dt) {
+      if (state.paused || state.gameOver) return;
+      state.now += dt;
+
+      // météo (twist gameplay)
+      state.weatherTimer -= dt;
+      if (state.weatherTimer <= 0) {
+        state.weatherIndex = (state.weatherIndex + 1) % WEATHER_STATES.length;
+        state.weatherTimer = WEATHER_STATES[state.weatherIndex].duration;
+        weatherTextEl.textContent = `Météo: ${WEATHER_STATES[state.weatherIndex].name}`;
+        announce(`Météo: ${WEATHER_STATES[state.weatherIndex].name}`, 1.0);
+      }
+
+      // cooldown shop
+      for (const key of Object.keys(PLANT_DEFS)) {
+        state.plantCooldowns[key] = Math.max(0, (state.plantCooldowns[key] || 0) - dt);
+      }
+
+      // auto start vague
+      if (!state.waveActive) {
+        state.waveCountdown -= dt;
+        if (state.waveCountdown <= 0) startWave();
+      }
+
+      // spawn queue
+      if (state.waveActive && state.spawnQueue.length) {
+        state.spawnTimer -= dt;
+        if (state.spawnTimer <= 0) {
+          const next = state.spawnQueue.shift();
+          createEnemy(next.typeId, next.lane);
+          state.spawnTimer = next.delay;
+        }
+      }
+
+      // plantes
+      const weather = WEATHER_STATES[state.weatherIndex];
+      for (const p of state.plants) {
+        if (p.dead) continue;
+        const def = PLANT_DEFS[p.type];
+
+        // animation pop-in spring
+        const spring = (1 - p.scale) * 18;
+        p.scaleVel += spring * dt;
+        p.scaleVel *= Math.pow(0.03, dt);
+        p.scale += p.scaleVel * dt;
+
+        p.recoil = Math.max(0, p.recoil - dt * 3.5);
+
+        if (def.incomeInterval) {
+          p.incomeTimer -= dt;
+          if (p.incomeTimer <= 0) {
+            p.incomeTimer += def.incomeInterval;
+            const gain = def.incomeAmount + weather.incomeBonus;
+            state.currency += gain;
+            createPopup(`+${gain}`, p.x, p.y - 18, '#ffe17a');
+            burstParticles(p.x, p.y, 10, '#ffee85', 100);
+            audio.click();
+          }
+        }
+
+        const hasGun = def.damage || def.tinyDamage || def.chainCount;
+        if (!hasGun) continue;
+
+        p.fireTimer -= dt;
+        if (p.fireTimer <= 0) {
+          const shotRate = (def.rate || def.tinyRate || 1) * weather.fireRateMult;
+          p.fireTimer += 1 / shotRate;
+
+          if (def.chainCount) {
+            castChain(p, def);
+            continue;
+          }
+
+          const enemy = nearestEnemyInLane(p.row, p.x + 8);
+          if (!enemy) continue;
+
+          if (def.tinyDamage) {
+            damageEnemy(enemy, def.tinyDamage, def.id);
+            p.recoil = 0.5;
+            audio.shoot();
+            continue;
+          }
+          fireProjectile(p, enemy, def);
+        }
+      }
+
+      // projectiles
+      for (const proj of state.projectiles) {
+        proj.x += proj.vx * dt;
+        proj.y += proj.vy * dt;
+        proj.life -= dt;
+        if (proj.life <= 0) { proj.dead = true; continue; }
+
+        for (const e of state.enemies) {
+          if (e.dead || e.lane !== proj.lane) continue;
+          if (proj.hitSet.has(e.id)) continue;
+          const d = Math.hypot(e.x - proj.x, e.y - proj.y);
+          if (d <= e.radius + 6) {
+            proj.hitSet.add(e.id);
+            damageEnemy(e, proj.damage, proj.sourceType);
+
+            if (proj.slowPct) {
+              e.slowFactor = Math.max(e.slowFactor, 1 - proj.slowPct);
+              e.slowTimer = Math.max(e.slowTimer, proj.slowDuration);
+              burstParticles(e.x, e.y, 6, '#a7d8ff', 120);
+            }
+
+            if (proj.splashRadius > 0) {
+              for (const other of state.enemies) {
+                if (other.dead || other.lane !== e.lane) continue;
+                const dd = Math.hypot(other.x - e.x, other.y - e.y);
+                if (dd <= proj.splashRadius) {
+                  const falloff = 1 - clamp(dd / proj.splashRadius, 0, 1) * 0.45;
+                  damageEnemy(other, proj.damage * falloff, proj.sourceType, true);
+                }
+              }
+              burstParticles(e.x, e.y, 24, '#ffcc9f', 220);
+              shake(6);
+              audio.boom();
+              proj.dead = true;
+              break;
+            }
+
+            proj.pierceLeft -= 1;
+            if (proj.pierceLeft <= 0) {
+              proj.dead = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // ennemis
+      for (const e of state.enemies) {
+        if (e.dead) continue;
+
+        if (e.slowTimer > 0) {
+          e.slowTimer -= dt;
+          if (e.slowTimer <= 0) e.slowFactor = 1;
+        }
+
+        const edef = ENEMY_DEFS[e.type];
+
+        if (edef.healer) {
+          e.healerPulse -= dt;
+          if (e.healerPulse <= 0) {
+            e.healerPulse = 2.6;
+            for (const al of state.enemies) {
+              if (al.dead || al.lane !== e.lane || al === e) continue;
+              if (Math.abs(al.x - e.x) <= 120) {
+                al.hp = Math.min(al.maxHp, al.hp + 16);
+                burstParticles(al.x, al.y, 4, '#7cf4ff', 80);
+              }
+            }
+          }
+        }
+
+        if (edef.boss) {
+          e.summonTimer -= dt;
+          if (e.summonTimer <= 0) {
+            e.summonTimer = ENEMY_DEFS.boss.summonInterval;
+            createEnemy(Math.random() < 0.5 ? 'weasel' : 'hopper', e.lane, rand(20, 60));
+            announce('Le boss invoque des sbires !', 1.0);
+          }
+        }
+
+        const obstacle = enemyAtCollision(e);
+
+        if (obstacle && !obstacle.dead) {
+          if (edef.jumper && !e.jumped) {
+            e.x -= state.gridRect.cellW * 0.9;
+            e.jumped = true;
+            burstParticles(e.x, e.y, 16, '#e6c2ff', 160);
+          } else {
+            e.atkTimer -= dt;
+            if (e.atkTimer <= 0) {
+              e.atkTimer += 1 / e.atkRate;
+              damagePlant(obstacle, e.damage);
+            }
+          }
+        } else {
+          const speed = e.speed * e.slowFactor * (1 + Math.min(state.wave, 20) * 0.01);
+          e.x -= speed * dt;
+        }
+
+        if (e.x - e.radius <= state.gridRect.x - state.gridRect.cellW * HOUSE_SAFE_X_RATIO) {
+          triggerGameOver();
+          return;
+        }
+      }
+
+      // nettoyage
+      state.enemies = state.enemies.filter(e => !e.dead);
+      state.plants = state.plants.filter(p => !p.dead);
+      state.projectiles = state.projectiles.filter(p => !p.dead);
+
+      // wave ended
+      if (state.waveActive && !state.spawnQueue.length && state.enemies.length === 0) {
+        finishWave();
+      }
+
+      for (const p of state.particles) {
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= Math.pow(0.03, dt);
+        p.vy *= Math.pow(0.03, dt);
+      }
+      state.particles = state.particles.filter(p => p.life > 0);
+
+      for (const pop of state.popups) {
+        pop.life -= dt;
+        pop.y += pop.vy * dt;
+        pop.scale += dt * 0.12;
+      }
+      state.popups = state.popups.filter(p => p.life > 0);
+
+      state.cameraShake = Math.max(0, state.cameraShake - dt * 2.8);
+      if (state.cameraShake === 0) state.cameraShakePower = 0;
+
+      updateHUD();
+    }
+
+    // =========================================================
+    // DRAW
+    // =========================================================
+    function drawBackground() {
+      const { width:w, height:h } = state;
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, '#234031');
+      grad.addColorStop(1, '#122019');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      const g = state.gridRect;
+      const spawnW = w - (g.x + g.w) - 26;
+
+      // maison à gauche
+      const hx = g.x - 86;
+      const hy = g.y + g.h * 0.5 - 70;
+      ctx.fillStyle = '#d8f3e4';
+      ctx.fillRect(hx, hy + 26, 64, 72);
+      ctx.fillStyle = '#e97f7f';
+      ctx.beginPath();
+      ctx.moveTo(hx - 6, hy + 26);
+      ctx.lineTo(hx + 32, hy - 8);
+      ctx.lineTo(hx + 70, hy + 26);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#754f38';
+      ctx.fillRect(hx + 22, hy + 56, 20, 42);
+
+      // pelouse & lanes
+      for (let r = 0; r < GRID_ROWS; r++) {
+        for (let c = 0; c < GRID_COLS; c++) {
+          const x = g.x + c * g.cellW;
+          const y = g.y + r * g.cellH;
+          ctx.fillStyle = (r + c) % 2 ? '#38614a' : '#325740';
+          ctx.fillRect(x, y, g.cellW - 1, g.cellH - 1);
+        }
+        ctx.fillStyle = 'rgba(255,255,255,.06)';
+        ctx.fillRect(g.x + g.w, g.y + r * g.cellH, spawnW, g.cellH - 1);
+      }
+
+      // bandes lane droite
+      for (let r = 0; r < GRID_ROWS; r++) {
+        ctx.fillStyle = LANE_COLORS[r] + '44';
+        ctx.fillRect(g.x + g.w, g.y + r * g.cellH, spawnW, g.cellH - 2);
+      }
+
+      // highlight
+      if (state.hoverCell) {
+        const { col, row } = state.hoverCell;
+        const x = g.x + col * g.cellW;
+        const y = g.y + row * g.cellH;
+        const canPlace = !gridOccupancy[row][col] && state.currency >= PLANT_DEFS[state.selectedPlantId].cost;
+        ctx.fillStyle = canPlace ? 'rgba(145, 255, 168, 0.18)' : 'rgba(255, 113, 113, 0.2)';
+        ctx.fillRect(x, y, g.cellW, g.cellH);
+        ctx.strokeStyle = canPlace ? 'rgba(180,255,200,.8)' : 'rgba(255,120,120,.8)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, g.cellW - 2, g.cellH - 2);
+      }
+
+      // météo overlay
+      ctx.fillStyle = WEATHER_STATES[state.weatherIndex].tint;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    function drawPlants() {
+      for (const p of state.plants) {
+        const def = PLANT_DEFS[p.type];
+        const size = Math.min(state.gridRect.cellW, state.gridRect.cellH) * 0.38;
+        const rec = p.recoil * 6;
+
+        ctx.save();
+        ctx.translate(p.x - rec, p.y);
+        ctx.scale(clamp(p.scale, 0.4, 1.1), clamp(p.scale, 0.4, 1.1));
+
+        ctx.fillStyle = def.drawColor;
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 0.56, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(0,0,0,.14)';
+        ctx.beginPath();
+        ctx.arc(0, size * 0.45, size * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = `${Math.round(size)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(def.emoji, 0, -1);
+
+        // hp bar
+        if (p.hp < p.maxHp) {
+          const w = size * 1.3;
+          const h = 6;
+          const hpRatio = clamp(p.hp / p.maxHp, 0, 1);
+          ctx.fillStyle = 'rgba(0,0,0,.45)';
+          ctx.fillRect(-w / 2, size * 0.86, w, h);
+          ctx.fillStyle = '#91ff92';
+          ctx.fillRect(-w / 2, size * 0.86, w * hpRatio, h);
+        }
+
+        ctx.restore();
+      }
+    }
+
+    function drawEnemies() {
+      for (const e of state.enemies) {
+        const base = ENEMY_DEFS[e.type];
+        const radius = e.radius;
+
+        ctx.save();
+        ctx.translate(e.x, e.y + e.yJitter * 0.05);
+
+        ctx.fillStyle = base.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // légère variation
+        ctx.fillStyle = `hsla(${20 + e.colorShift}, 70%, 70%, .28)`;
+        ctx.beginPath();
+        ctx.arc(-radius * 0.23, -radius * 0.16, radius * 0.36, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#1e2723';
+        ctx.beginPath();
+        ctx.arc(-radius * 0.2, -radius * 0.16, 3, 0, Math.PI * 2);
+        ctx.arc(radius * 0.2, -radius * 0.16, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (base.boss) {
+          ctx.strokeStyle = 'rgba(255,198,209,.9)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0,0,radius+5,0,Math.PI*2);
+          ctx.stroke();
+        }
+
+        // hp bar si endommagé
+        if (e.hp < e.maxHp) {
+          const w = radius * 2.0;
+          const h = 5;
+          const hpRatio = clamp(e.hp / e.maxHp, 0, 1);
+          ctx.fillStyle = 'rgba(0,0,0,.45)';
+          ctx.fillRect(-w / 2, -radius - 13, w, h);
+          ctx.fillStyle = base.boss ? '#ff6b87' : '#97ff97';
+          ctx.fillRect(-w / 2, -radius - 13, w * hpRatio, h);
+        }
+
+        // slow fx
+        if (e.slowFactor < 1) {
+          ctx.strokeStyle = 'rgba(180,228,255,.8)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, radius + 3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+    }
+
+    function drawProjectiles() {
+      for (const p of state.projectiles) {
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.splashRadius ? 5.4 : 4.1, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,255,.5)';
+        ctx.beginPath();
+        ctx.arc(p.x - 1.5, p.y - 1.5, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawFx() {
+      for (const p of state.particles) {
+        const a = clamp(p.life / p.ttl, 0, 1);
+        ctx.fillStyle = p.color.replace(')', `, ${a})`).replace('rgb', 'rgba');
+        // fallback si color hex
+        if (!p.color.includes('rgb')) ctx.globalAlpha = a;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+        ctx.globalAlpha = 1;
+      }
+
+      for (const pop of state.popups) {
+        const a = clamp(pop.life / 0.9, 0, 1);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = pop.color;
+        ctx.font = `${Math.round(15 * pop.scale)}px Inter, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(pop.text, pop.x, pop.y);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function drawWaveCountdown() {
+      if (state.waveActive || state.gameOver) return;
+      const txt = `Prochaine vague auto dans ${Math.ceil(state.waveCountdown)}s`;
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      ctx.fillRect(state.width * 0.36, 58, state.width * 0.28, 30);
+      ctx.fillStyle = '#dff3e7';
+      ctx.font = '700 15px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(txt, state.width * 0.5, 78);
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, state.width, state.height);
+      const shakeAmp = state.cameraShake * state.cameraShakePower;
+      const ox = rand(-shakeAmp, shakeAmp);
+      const oy = rand(-shakeAmp, shakeAmp);
+      ctx.save();
+      ctx.translate(ox, oy);
+
+      drawBackground();
+      drawPlants();
+      drawProjectiles();
+      drawEnemies();
+      drawFx();
+      drawWaveCountdown();
+
+      ctx.restore();
+    }
+
+    // =========================================================
+    // UI / GAME FLOW
+    // =========================================================
+    function updateHUD() {
+      moneyEl.textContent = `🌱 ${Math.floor(state.currency)}`;
+      waveTextEl.textContent = `Wave ${Math.max(1, state.wave)}`;
+      killTextEl.textContent = `Kills ${state.kills}`;
+      weatherTextEl.textContent = `Météo: ${WEATHER_STATES[state.weatherIndex].name}`;
+      startWaveBtn.disabled = state.waveActive || state.gameOver;
+      updateShopVisuals();
+    }
+
+    function triggerGameOver() {
+      if (state.gameOver) return;
+      state.gameOver = true;
+      state.waveActive = false;
+      shake(14);
+      audio.gameOver();
+      finalScoreEl.textContent = `Score final: ${state.score}`;
+      finalWaveEl.textContent = `Wave atteinte: ${state.wave}`;
+      overlay.style.display = 'flex';
+      announce('Game Over', 2.2);
+    }
+
+    function resetGame() {
+      state.paused = false;
+      state.gameOver = false;
+      state.currency = START_CURRENCY;
+      state.score = 0;
+      state.kills = 0;
+      state.wave = 0;
+      state.waveActive = false;
+      state.waveCountdown = BASE_AUTO_WAVE_DELAY;
+      state.spawnQueue.length = 0;
+      state.spawnTimer = 0;
+      state.enemies.length = 0;
+      state.plants.length = 0;
+      state.projectiles.length = 0;
+      state.particles.length = 0;
+      state.popups.length = 0;
+      state.weatherIndex = 0;
+      state.weatherTimer = WEATHER_STATES[0].duration;
+      state.cameraShake = 0;
+      state.cameraShakePower = 0;
+      for (const row of gridOccupancy) row.fill(null);
+      for (const key of Object.keys(PLANT_DEFS)) state.plantCooldowns[key] = 0;
+      overlay.style.display = 'none';
+      announce('Nouveau jardin', 1.2);
+      updateHUD();
+    }
+
+    // =========================================================
+    // INPUT
+    // =========================================================
+    function onPointerMove(e) {
+      const rect = canvas.getBoundingClientRect();
+      state.mouse.x = e.clientX - rect.left;
+      state.mouse.y = e.clientY - rect.top;
+      state.hoverCell = worldToCell(state.mouse.x, state.mouse.y);
+    }
+
+    function onPointerDown(e) {
+      audio.unlock();
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const cell = worldToCell(x, y);
+      if (cell) {
+        placePlant(cell.col, cell.row);
+      }
+    }
+
+    function setupEvents() {
+      window.addEventListener('resize', resize);
+      canvas.addEventListener('mousemove', onPointerMove);
+      canvas.addEventListener('mousedown', onPointerDown);
+      canvas.addEventListener('touchstart', (e) => {
+        const t = e.changedTouches[0];
+        onPointerDown({ clientX: t.clientX, clientY: t.clientY });
+      }, { passive: true });
+      startWaveBtn.addEventListener('click', () => { audio.unlock(); startWave(); });
+      pauseBtn.addEventListener('click', () => {
+        state.paused = !state.paused;
+        pauseBtn.textContent = state.paused ? 'Reprendre' : 'Pause';
+      });
+      retryBtn.addEventListener('click', () => { audio.unlock(); resetGame(); });
+    }
+
+    // =========================================================
+    // LOOP PRINCIPALE (dt based)
+    // =========================================================
+    let lastTime = performance.now();
+    function frame(now) {
+      const rawDt = (now - lastTime) / 1000;
+      const dt = Math.min(0.033, rawDt || (1 / TARGET_FPS));
+      lastTime = now;
+
+      update(dt);
+      render();
+
+      requestAnimationFrame(frame);
+    }
+
+    // =========================================================
+    // INIT
+    // =========================================================
+    function init() {
+      resize();
+      buildShop();
+      setupEvents();
+      resetGame();
+      requestAnimationFrame(frame);
+    }
+
+    init();
+  })();
+  </script>
+</body>
+</html>
